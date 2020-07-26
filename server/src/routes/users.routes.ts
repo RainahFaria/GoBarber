@@ -1,18 +1,24 @@
 import { Router } from 'express';
 import { getRepository } from 'typeorm';
 import CreateUserService from '../services/CreateUserService';
+import UpdateUserAvatarService from '../services/UpdateUserAvatarService';
 import User from '../models/User';
+import uploadConfig from '../config/upload';
 
-const UsersRouter = Router();
+import ensureAuthenticated from '../middlewares/ensureAuthenticated';
+import multer from 'multer';
 
-UsersRouter.get('/', async (request, response) => {
+const usersRouter = Router();
+const upload = multer(uploadConfig);
+
+usersRouter.get('/', async (request, response) => {
   const usersRepository = getRepository(User);
   const users = await usersRepository.find();
 
   return response.json(users);
 });
 
-UsersRouter.post('/', async (request, response) => {
+usersRouter.post('/', async (request, response) => {
   try {
     const { name, email, password } = request.body;
 
@@ -32,4 +38,25 @@ UsersRouter.post('/', async (request, response) => {
   }
 });
 
-export default UsersRouter;
+usersRouter.patch(
+  '/avatar',
+  ensureAuthenticated,
+  upload.single('avatar'),
+  async (request, response) => {
+    try {
+      const updateUserAvatar = new UpdateUserAvatarService();
+
+      const user = await updateUserAvatar.execute({
+        user_id: request.user.id,
+        avatarFileName: request.file.filename,
+      });
+      delete user.password;
+
+      return response.json(user);
+    } catch (error) {
+      return response.status(400).json({ error: error.message });
+    }
+  },
+);
+
+export default usersRouter;
